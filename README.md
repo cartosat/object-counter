@@ -16,7 +16,26 @@ The model used in this example has been taken from
 [Kaggle](https://www.kaggle.com/models/google/mobilenet-v2/tensorFlow1/openimages-v4-ssd-mobilenet-v2/1)
 
 
-## Instructions to setup the model (Unix)
+## Quick start
+
+Every setup step described in this README is automated in the [`Makefile`](Makefile).
+Below are few commands:
+
+```bash
+make setup   # download the model, create the virtualenv, install dependencies
+make up      # start TensorFlow Serving + MongoDB, wait until both are healthy
+make run     # start the API on http://localhost:5000
+```
+
+**Prerequisites:** Docker, Python >= 3.10, and GNU make.
+
+Run `make` with no arguments to list the available tasks.
+
+---
+
+## Manual setup
+
+### Instructions to setup the model (Unix)
 ```bash
 mkdir -p tmp/model/ssd_mobilenet_v2/1
 curl -L -o tmp/model.tar.gz \
@@ -39,9 +58,22 @@ By the end you should have the following structure:
         saved_model.pb
  ```
 
-## Setup and run Tensorflow Serving
+### Starting the services with Docker Compose
 
-### For unix systems
+Both services are defined in [`docker-compose.yml`](docker-compose.yml). This is what
+`make up` runs, and it is the recommended manual alternative to the individual
+`docker run` commands below:
+
+```bash
+docker compose up -d --wait   # --wait blocks until both containers report healthy
+docker compose down           # stop (MongoDB data is kept in a named volume)
+```
+
+The individual commands below are kept for reference and for anyone not using Compose.
+
+### Setup and run Tensorflow Serving
+
+#### For unix systems
 ```bash
 num_physical_cores=$(lscpu --all --parse=SOCKET,CORE | grep -v '^#' | uniq | wc -l)
 
@@ -55,7 +87,7 @@ docker run --rm -d \
     tensorflow/serving
 ```
 
-### For Windows (Powershell)
+#### For Windows (Powershell)
 ```powershell
 $num_physical_cores=(Get-WmiObject Win32_Processor | Select-Object NumberOfCores).NumberOfCores
 
@@ -69,13 +101,13 @@ docker run --rm -d `
     tensorflow/serving
 ```
 
-## Running MongoDB
+### Running MongoDB
 
 ```bash
 docker run --rm --name test-mongo -p 27017:27017 -d mongo:latest
 ```
 
-## Setup virtualenv (Python >= 3.10)
+### Setup virtualenv (Python >= 3.10)
 
 Unix:
 ```bash
@@ -95,6 +127,10 @@ $Env:PYTHONPATH = "."
 
 
 ## Run the application
+
+> Equivalent to `make run` (real services). There is no Make target for the fakes
+> variant below — it is intentionally the one path that needs neither Docker nor the
+> downloaded model.
 
 ### Using fakes
 ```bash
