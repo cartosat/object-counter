@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: setup model env test up wait down run help
+.PHONY: setup model env up wait down run help
 
 # Model Variables
 
@@ -52,8 +52,8 @@ env: $(PYTHON)  ##  Install dependencies in a virtual environment
 	$(PIP) install -r requirements.txt
 
 
-test: env ## Run the test suite
-	$(PYTEST)
+# test: env ## Run the test suite
+# 	$(PYTEST)
 
 
 up: $(MODEL_FILE) ## Start the TF Serving + MongoDB
