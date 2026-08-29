@@ -1,6 +1,7 @@
 from typing import List
 
 from pymongo import MongoClient
+import psycopg2
 
 from counter.domain.models import ObjectCount
 from counter.domain.ports import ObjectCountRepo
@@ -54,3 +55,47 @@ class CountMongoDBRepo(ObjectCountRepo):
         for value in new_values:
             counter_col.update_one({'object_class': value.object_class}, {'$inc': {'count': value.count}}, upsert=True)
 
+
+class CountPostgresRepo(ObjectCountRepo):
+
+    def __init__(self, host, user, password, port, database):
+        self.__host = host
+        self.__user = user
+        self.__password = password
+        self.__port = port
+        self.__database = database
+
+    def __connect(self):
+        return psycopg2.connect(
+            host=self.__host,
+            user=self.__user,
+            password=self.__password,
+            port=self.__port,
+            database=self.__database
+        )
+
+    def read_values(self, object_classes: List[str] = None) -> List[ObjectCount]:
+        connection = self.__connect()
+        try:
+            with connection.cursor() as cursor:
+                if object_classes:
+                    cursor.execute("SELECT object_class, count FROM counter WHERE object_class IN %s",
+                                   (tuple(object_classes),))
+                else:
+                    cursor.execute("SELECT object_class, count FROM counter")
+                return [ObjectCount(object_class, count) for object_class, count in cursor.fetchall()]
+        finally:
+            connection.close()
+
+    def update_values(self, new_values: List[ObjectCount]):
+        connection = self.__connect()
+        try:
+            with connection.cursor() as cursor:
+                for value in new_values:
+                    cursor.execute("INSERT INTO counter (object_class, count) VALUES (%s, %s) "
+                                   "ON CONFLICT (object_class) DO UPDATE "
+                                   "SET count = counter.count + EXCLUDED.count",
+                                   (value.object_class, value.count))
+            connection.commit()
+        finally:
+            connection.close()
