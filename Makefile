@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: setup model env up wait down run help
+.PHONY: setup model env up wait down run migrate help
 
 # Model Variables
 
@@ -14,6 +14,10 @@ MODEL_EXTRACT := tmp/model/ssd_mobilenet_v2_coco_2018_03_29
 # Docker container names (must match docker-compose.yml)
 TFS_CONTAINER   := tfserving
 MONGO_CONTAINER := test-mongo
+
+# Postgres (must match docker-compose.yml)
+POSTGRES_USER ?= postgres
+POSTGRES_DB   ?= prod_counter
 
 # API Variables (overridable by env variables)
 API_URL     ?= http://localhost:5000
@@ -56,9 +60,12 @@ env: $(PYTHON)  ##  Install dependencies in a virtual environment
 # 	$(PYTEST)
 
 
-up: $(MODEL_FILE) ## Start the TF Serving + MongoDB
+up: $(MODEL_FILE) ## Start the TF Serving + MongoDB + Postgres
 	docker compose up -d --wait
 
+
+migrate:  ## Apply sql/schema.sql to a running Postgres (initdb only runs on a fresh volume)
+	docker compose exec -T postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f - < sql/schema.sql
 
 down:  ## Stop the services (MongoDB data is kept)
 	docker compose down

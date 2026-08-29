@@ -107,6 +107,12 @@ docker run --rm -d `
 docker run --rm --name test-mongo -p 27017:27017 -d mongo:latest
 ```
 
+### Running PostgreSQL
+
+```bash
+docker run --rm --name test-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:latest
+```
+
 ### Setup virtualenv (Python >= 3.10)
 
 Unix:
