@@ -135,4 +135,83 @@ with one command.
 
 ---
 
-s
+## Application architecture
+
+### 10. Debug image drawing sits inside the domain
+
+`CountDetectedObjects` calls `__debug_image()` two times for each request, which opens the image and writes two JPEGs into `tmp/debug/`. 
+The guard is `if __debug__`, which is `True` unless we run Python with `-O`, so this happens on every production request.
+
+Two problems with it:
+
+- writing files to disk is infrastructure work, it should not belong to domain layer.
+`Image.open(image)` leaves the `BytesIO` at end-of-file.
+
+**Fix:** take the `draw` call out of `actions.py`. Either drop `debug.py` or put it
+behind a small port with a no-op default, switched on by a `DEBUG_IMAGES` env var.
+
+
+### 11. `config.py` - Replace dynamic factory lookup
+
+```python
+count_action_fn = f"{env}_count_action"
+return globals()[count_action_fn]()
+```
+
+The configuration currently builds a function name dynamically and looks
+it up using `globals()`. It works, but wrong env values e.g `ENV=production`
+will give  `KeyError: 'production_count_action'`.
+
+**Fix:** use an explicit dict mapping env to factory, and raise a clear error listing the
+valid values when the key is missing.
+
+
+### 12. Missing type hints
+
+The ports have proper type hints, but the actions do not have:
+
+```python
+def predict(self, image: BinaryIO) -> List[Prediction]     # ports.py, typed
+def execute(self, image, threshold) -> CountResponse       # actions.py, not typed
+```
+
+Reading `execute()` you cannot tell what `image` is, you have to go find the caller.
+Same for both repo `__init__` methods and `_read_request()` in `webapp.py`.
+
+**Fix:** annotate the parameters, `image: BinaryIO, threshold: float`. Simple to do and
+it documents the code better.
+
+---
+
+## Testing
+
+### 13. Separate development dependencies
+
+Module `pytest` is in `requirements.txt`, so it gets installed in production too.
+
+**Fix:** 
+    1. Move it to `requirements-dev.txt` and install that only for development.
+    2. Another way would be using `pyproject.toml` for handling environment specific dependencies.
+
+
+### 14. adapter does not tests.
+
+The domain and API have tests, but the database adapters are not covered
+sufficiently.
+This is important because adapter code contains integration logic and
+can fail even when the domain tests pass.
+
+**Fix:** write the tests once against the `ObjectCountRepo` interface and run them
+against all three implementations with a parametrized fixture.
+
+---
+
+## Docs
+
+### 15. README says the wrong model
+
+The README links the Kaggle OpenImages MobileNet, but the setup script downloads the
+COCO one and the label map is MS-COCO. Small thing but it is confusing if you follow the
+link.
+
+**Fix:** point the link at the model that is actually used.
