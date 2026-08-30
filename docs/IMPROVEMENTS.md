@@ -87,3 +87,52 @@ RGBA image crashes with a shape error.
 numpy.
 
 
+### 6. `print()` used for logging
+
+`TFSObjectDetector` currently uses `print()` for debugging output, including prediction data.
+
+**Fix:** use the `logging` module. `logger.debug()` for the prediction dump,
+`logger.info()` for the request to TF Serving.
+
+
+### 7. Hardcoded relative paths
+
+Two files are opened with paths relative to the working directory:
+
+- `counter/adapters/mscoco_label_map.json` in `object_detector.py`
+- `counter/resources/arial.ttf` in `debug.py`
+
+So the app only runs if you start it from the repo root. Running `pytest` from any other
+folder fails with an `OSError`. 
+
+**Fix:** resolve both with `Path(__file__).parent / "..."`. For the label map, make it a
+constructor argument so each detector can have its own.
+
+
+### 8. `.env.example` file
+
+The app has a lot of env vars (`ENV`, `TFS_HOST`, `TFS_PORT`, `MONGO_*`,
+`POSTGRES_*`, `MODEL_NAME`) but these are not written down anywhere. We need to
+find them by reading `config.py`.
+
+**Fix:** add a `.env.example` listing every variable with its default, and mention it in
+the README.
+
+
+### 9. Makefile, docker compose, Dockerfile
+
+Setup used around 15 commands spread over 5 README sections, and nothing was
+automated.
+
+Now there is a `docker-compose.yml` for TF Serving, MongoDB and Postgres, and a
+`Makefile` so setup is `make setup && make up && make run`.
+
+`Dockerfile` is missing. So the app runs on the host while everything else 
+runs in containers.
+
+**Fix:** add a `Dockerfile` and an `app` service in compose, so the whole thing comes up
+with one command.
+
+---
+
+s
