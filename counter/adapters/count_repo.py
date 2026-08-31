@@ -1,7 +1,8 @@
+from contextlib import contextmanager
 from typing import List
 
 from pymongo import MongoClient
-import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 
 from counter.domain.models import ObjectCount
 from counter.domain.ports import ObjectCountRepo
@@ -58,44 +59,40 @@ class CountMongoDBRepo(ObjectCountRepo):
 
 class CountPostgresRepo(ObjectCountRepo):
 
-    def __init__(self, host, user, password, port, database):
-        self.__host = host
-        self.__user = user
-        self.__password = password
-        self.__port = port
-        self.__database = database
+    def __init__(self, host, user, password, port, database, min_connections=1, max_connections=5):
+        self.__pool = SimpleConnectionPool(min_connections, max_connections,
+                                           host=host, user=user, password=password,
+                                           port=port, database=database)
 
-    def __connect(self):
-        return psycopg2.connect(
-            host=self.__host,
-            user=self.__user,
-            password=self.__password,
-            port=self.__port,
-            database=self.__database
-        )
+    @contextmanager
+    def __connection(self):
+        """Lend a pooled connection, committing on success and always returning it."""
+        connection = self.__pool.getconn()
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            self.__pool.putconn(connection)
 
     def read_values(self, object_classes: List[str] = None) -> List[ObjectCount]:
-        connection = self.__connect()
-        try:
-            with connection.cursor() as cursor:
-                if object_classes:
-                    cursor.execute("SELECT object_class, count FROM counter WHERE object_class IN %s",
-                                   (tuple(object_classes),))
-                else:
-                    cursor.execute("SELECT object_class, count FROM counter")
-                return [ObjectCount(object_class, count) for object_class, count in cursor.fetchall()]
-        finally:
-            connection.close()
+        with self.__connection() as connection, connection.cursor() as cursor:
+            if object_classes:
+                cursor.execute("SELECT object_class, count FROM counter WHERE object_class IN %s",
+                               (tuple(object_classes),))
+            else:
+                cursor.execute("SELECT object_class, count FROM counter")
+            return [ObjectCount(object_class, count) for object_class, count in cursor.fetchall()]
 
     def update_values(self, new_values: List[ObjectCount]):
-        connection = self.__connect()
-        try:
-            with connection.cursor() as cursor:
-                for value in new_values:
-                    cursor.execute("INSERT INTO counter (object_class, count) VALUES (%s, %s) "
-                                   "ON CONFLICT (object_class) DO UPDATE "
-                                   "SET count = counter.count + EXCLUDED.count",
-                                   (value.object_class, value.count))
-            connection.commit()
-        finally:
-            connection.close()
+        with self.__connection() as connection, connection.cursor() as cursor:
+            cursor.executemany(
+                "INSERT INTO counter (object_class, count) VALUES (%s, %s) "
+                "ON CONFLICT (object_class) DO UPDATE "
+                "SET count = counter.count + EXCLUDED.count",
+                [(value.object_class, value.count) for value in new_values])
+
+    def close(self):
+        self.__pool.closeall()
