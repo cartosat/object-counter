@@ -171,3 +171,79 @@ python -m counter.entrypoints.webapp
 ```
 pytest
 ```
+
+## Additional deep learning framework (PyTorch).
+
+A second detector, `ssdlite320_mobilenet_v3_large`, served by TorchServe. It is also COCO trained, so it detects the same classes as the TensorFlow model.
+
+### Instructions to setup the model (Unix)
+
+Download the pretrained weights.
+
+```bash
+mkdir -p tmp/model/torch_ssdlite320
+curl -L -o tmp/model/torch_ssdlite320/ssdlite320.pth \
+  https://download.pytorch.org/models/ssdlite320_mobilenet_v3_large_coco-a79551df.pth
+```
+
+### Convert the weights into a model archive (One time only)
+
+TorchServe only serves `.mar` archives, so the weights have to be packaged together with a handler. The packaging runs inside the TorchServe image, so **torch is never installed on your machine** and `requirements.txt` does not change:
+
+```bash
+mkdir -p tmp/torch-model-store
+
+docker run --rm \
+    -v "$(pwd)/torchserve:/build:ro" \
+    -v "$(pwd)/tmp/model/torch_ssdlite320:/weights:ro" \
+    -v "$(pwd)/tmp/torch-model-store:/model-store" \
+    --entrypoint torch-model-archiver pytorch/torchserve:0.12.0-cpu \
+      --model-name ssdlite320 \
+      --version 1.0 \
+      --handler /build/handler.py \
+      --extra-files /weights/ssdlite320.pth \
+      --export-path /model-store \
+      --force
+```
+
+By the end you should have the following structure:
+ ```
+ tmp/
+  model/
+    torch_ssdlite320/
+      ssdlite320.pth
+  torch-model-store/
+    ssdlite.mar
+ ```
+
+### Setup and run TorchServe
+
+```bash
+docker run --rm -d \
+    --name=torchserve \
+    -p 8080:8080 -p 8081:8081 -p 8082:8082 \
+    --mount type=bind,source=$(pwd)/tmp/torch-model-store,target=/home/model-server/model-store \
+    --mount type=bind,source=$(pwd)/torchserve/config.properties,target=/home/model-server/config.properties,readonly \
+    pytorch/torchserve:0.12.0-cpu \
+    torchserve --start --foreground \
+        --ts-config /home/model-server/config.properties \
+        --model-store /home/model-server/model-store \
+        --models ssdlite=ssdlite320.mar \
+        --disable-token-auth
+```
+
+### Call TorchServe directly
+
+```bash
+curl http://localhost:8080/ping
+curl -X POST http://localhost:8080/predictions/ssdlite -T resources/images/cat.jpg
+```
+
+The model may takes about 30 seconds to load on first start. `ping` returns
+`{"status": "Healthy"}` once it is ready.
+
+### Stop it
+
+```bash
+docker stop torchserve
+```
