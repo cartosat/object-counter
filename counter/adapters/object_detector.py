@@ -57,3 +57,35 @@ class TFSObjectDetector(ObjectDetector):
             predictions.append(Prediction(class_name=class_name, score=detection_score, box=box))
         print(predictions)
         return predictions
+
+
+class PyTorchObjectDetector(ObjectDetector):
+    """Detects objects using a PyTorch model served by TorchServe."""
+
+    def __init__(self, host: str, port: int, model: str):
+        self.url = f"http://{host}:{port}/predictions/{model}"
+
+    def predict(self, image: BinaryIO) -> List[Prediction]:
+        image.seek(0)
+        response = requests.post(self.url, data=image.read())
+        response.raise_for_status()
+        return self.__raw_predictions_to_domain(response.json())
+
+    def __raw_predictions_to_domain(self, raw_predictions: dict) -> List[Prediction]:
+        image_size = raw_predictions['image_size']
+        return [
+            Prediction(
+                class_name=detection['class_name'],
+                score=detection['score'],
+                box=self.__to_normalized_box(detection['box'], image_size),
+            )
+            for detection in raw_predictions['detections']
+        ]
+
+    @staticmethod
+    def __to_normalized_box(box: List[float], image_size: dict) -> Box:
+        """TorchServe returns pixel coordinates, the domain expects 0 to 1 ratios."""
+        xmin, ymin, xmax, ymax = box
+        width, height = image_size['width'], image_size['height']
+        return Box(xmin=xmin / width, ymin=ymin / height,
+                   xmax=xmax / width, ymax=ymax / height)

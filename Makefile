@@ -2,6 +2,10 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .PHONY: setup setup-pytorch-model model env up wait down run migrate help
 
+# Application variables.
+ENV      ?= prod
+DETECTOR ?= pytorch
+
 # Model Variables
 
 MODEL_NAME    := ssd_mobilenet_v2
@@ -106,7 +110,7 @@ down:  ## Stop the services (MongoDB data is kept)
 
 
 run: up env ## Run the webapp.
-	ENV=prod $(PYTHON) -m counter.entrypoints.webapp
+	ENV=$(ENV) DETECTOR=$(DETECTOR) $(PYTHON) -m counter.entrypoints.webapp
 
 
 help:  ## Show this help
