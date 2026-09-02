@@ -32,6 +32,33 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  torchserve:
+    image: pytorch/torchserve:${TORCHSERVE_VERSION:-0.12.0-cpu}
+    container_name: torchserve
+    ports:
+      - "${TORCHSERVE_PORT:-8080}:8080"   # inference
+      - "8081:8081"                       # management
+      - "8082:8082"                       # metrics
+    volumes:
+      # Built by `make setup-pytorch-model`.
+      - ./tmp/torch-model-store:/home/model-server/model-store:ro
+      # Replaces the image default, which is what binds TorchServe to 0.0.0.0 and
+      # caps the worker count. Without it the container answers only itself.
+      - ./torchserve/config.properties:/home/model-server/config.properties:ro
+    command: >
+      torchserve --start --foreground
+      --ts-config /home/model-server/config.properties
+      --model-store /home/model-server/model-store
+      --models ssdlite=ssdlite.mar
+      --disable-token-auth
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if b'Healthy' in urllib.request.urlopen('http://localhost:8080/ping', timeout=3).read() else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
   mongo:
     image: mongo:${MONGO_VERSION:-latest}
     container_name: test-mongo

@@ -8,6 +8,9 @@ def create_app():
     
     app = Flask(__name__)
     
+    # Log the object detector that backend is using.
+    print(f" * Using {config.get_detector_name()} as object detector.")
+
     count_action = config.get_count_action()
     detect_action = config.get_detect_action()
 
