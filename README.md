@@ -134,11 +134,22 @@ $Env:PYTHONPATH = "."
 
 ## Run the application
 
-> Equivalent to `make run` (real services). There is no Make target for the fakes
-> variant below — it is intentionally the one path that needs neither Docker nor the
-> downloaded model.
+`DETECTOR` chooses the model backend, either `tfs` (TensorFlow Serving) or `pytorch`
+(TorchServe). Whichever is in use is logged at startup:
+
+### Using make
+
+```bash
+make run                  # PyTorch via TorchServe
+make run DETECTOR=tfs     # TensorFlow Serving
+```
+
+`ENV` and `DETECTOR` are Makefile variables, so `DETECTOR=tfs make run` works too.
 
 ### Using fakes
+
+The only path that needs neither Docker nor a downloaded model:
+
 ```bash
 python -m counter.entrypoints.webapp
 ```
@@ -147,13 +158,17 @@ python -m counter.entrypoints.webapp
 
 Unix
 ```bash
-ENV=prod python -m counter.entrypoints.webapp
+ENV=prod DETECTOR=tfs python -m counter.entrypoints.webapp
+ENV=prod DETECTOR=pytorch python -m counter.entrypoints.webapp
 ```
 Powershell: 
 ```powershell
 $env:ENV = "prod"
+$env:DETECTOR = "pytorch"
 python -m counter.entrypoints.webapp
 ```
+
+Run `make up` first, so the model servers are up and healthy.
 
 ## Call the service
 
