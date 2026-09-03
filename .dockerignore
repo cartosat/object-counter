@@ -1,0 +1,19 @@
+# Build context will only carry the application package and requirements.
+.git
+.venv
+.vscode
+tmp
+docs
+tests
+resources
+sql
+torchserve
+*.md
+Makefile
+docker-compose.yml
+Dockerfile
+.dockerignore
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache

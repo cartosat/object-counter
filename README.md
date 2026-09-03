@@ -187,6 +187,38 @@ Run `make up` first, so the model servers are up and healthy.
 pytest
 ```
 
+## Docker image for the application
+### Build
+
+Images are tagged by build date, example below:
+```bash
+docker build -t object-counter:2026.09.03 .
+```
+
+### Run
+
+Start the backing services first with `make up`, then join the container to the same
+network so it can reach them by service name:
+
+```bash
+docker run --rm -p 5000:5000 \
+    --name counter-app \
+    --network object-counter-network \
+    -e ENV=prod \
+    -e DETECTOR=pytorch \
+    -e TFS_HOST=tfserving \
+    -e TORCHSERVE_HOST=torchserve \
+    -e POSTGRES_HOST=postgres \
+    -e MONGO_HOST=mongo \
+    object-counter:2026.09.03
+```
+
+### Stop it
+
+```bash
+docker stop counter-app
+```
+
 ## Additional deep learning framework (PyTorch).
 
 A second detector, `ssdlite320_mobilenet_v3_large`, served by TorchServe. It is also COCO trained, so it detects the same classes as the TensorFlow model.
