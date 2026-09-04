@@ -1,15 +1,20 @@
+import logging
 from io import BytesIO
 
 from flask import Flask, request, jsonify
 
 from counter import config
+from counter.logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
+
 
 def create_app():
-    
+    configure_logging()
+
     app = Flask(__name__)
-    
-    # Log the object detector that backend is using.
-    print(f" * Using {config.get_detector_name()} as object detector.")
+
+    logger.info("Using %s as object detector", config.get_detector_name())
 
     count_action = config.get_count_action()
     detect_action = config.get_detect_action()
