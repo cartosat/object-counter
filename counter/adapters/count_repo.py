@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import logging
 from typing import List
 
 from pymongo import MongoClient
@@ -6,6 +7,8 @@ from psycopg2.pool import SimpleConnectionPool
 
 from counter.domain.models import ObjectCount
 from counter.domain.ports import ObjectCountRepo
+
+logger = logging.getLogger(__name__)
 
 
 class CountInMemoryRepo(ObjectCountRepo):
@@ -52,6 +55,7 @@ class CountMongoDBRepo(ObjectCountRepo):
         return object_counts
 
     def update_values(self, new_values: List[ObjectCount]):
+        logger.debug("Updating %d object counts in MongoDB", len(new_values))
         counter_col = self.__get_counter_col()
         for value in new_values:
             counter_col.update_one({'object_class': value.object_class}, {'$inc': {'count': value.count}}, upsert=True)
@@ -87,6 +91,7 @@ class CountPostgresRepo(ObjectCountRepo):
             return [ObjectCount(object_class, count) for object_class, count in cursor.fetchall()]
 
     def update_values(self, new_values: List[ObjectCount]):
+        logger.debug("Updating %d object counts in Postgres", len(new_values))
         with self.__connection() as connection, connection.cursor() as cursor:
             cursor.executemany(
                 "INSERT INTO counter (object_class, count) VALUES (%s, %s) "
